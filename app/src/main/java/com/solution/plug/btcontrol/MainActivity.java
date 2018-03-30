@@ -1,145 +1,398 @@
 package com.solution.plug.btcontrol;
 
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
-
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentPagerAdapter;
-import android.support.v4.view.ViewPager;
-import android.os.Bundle;
-import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.View;
-import android.view.ViewGroup;
-
-import android.widget.TextView;
+        import android.annotation.SuppressLint;
+        import android.app.AlertDialog;
+        import android.bluetooth.BluetoothAdapter;
+        import android.bluetooth.BluetoothDevice;
+        import android.bluetooth.BluetoothServerSocket;
+        import android.bluetooth.BluetoothSocket;
+        import android.content.DialogInterface;
+        import android.content.DialogInterface.OnClickListener;
+        import android.content.Intent;
+        import android.os.Bundle;
+        import android.os.Handler;
+        import android.os.Looper;
+        import android.os.Message;
+        import android.os.Vibrator;
+        import android.support.design.widget.FloatingActionButton;
+        import android.support.v7.app.AppCompatActivity;
+        import android.support.v7.widget.DefaultItemAnimator;
+        import android.support.v7.widget.LinearLayoutManager;
+        import android.support.v7.widget.RecyclerView;
+        import android.support.v7.widget.Toolbar;
+        import android.util.Log;
+        import android.view.Menu;
+        import android.view.MenuItem;
+        import android.view.View;
+        import android.widget.ImageView;
+        import android.widget.TextView;
+        import android.widget.Toast;
+        import java.io.BufferedReader;
+        import java.io.FileNotFoundException;
+        import java.io.IOException;
+        import java.io.InputStream;
+        import java.io.InputStreamReader;
+        import java.io.OutputStream;
+        import java.util.ArrayList;
+        import java.util.List;
+        import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
+    int REQUEST_ENABLE_BT = 42;
+    private String[] SensorNames;
+    String TAG = "MainActivity";
+    private String address;
+    private int amount_measures = 0;
+    FloatingActionButton btn_connect;
+    private int bytes_in;
+    private int con_state = 0;
+    private int count_letter = 0;
+    private int counter = 0;
+    private int counter_2 = 0;
+    private int counter_msg_in = 0;
+    private int counter_threads = 0;
+    private String deviceName;
+    private int disconnable = 0;
+    private int first_1 = 1;
+    ImageView image;
+    private int lastX = 0;
+    private SensorAdapter mAdapter;
+    BluetoothAdapter mBluetoothAdapter;
+    BluetoothDevice mBtDevice;
+    BluetoothServerSocket mBtServerSocket;
+    BluetoothSocket mBtSocket;
+    Handler mHandler = new Handler(Looper.getMainLooper()) {
+        public void handleMessage(Message inputMessage) {
+            switch (inputMessage.what) {
+                case R.styleable.AppCompatTheme_buttonBarStyle /*43*/:
+                    int i;
+                    String readMessage = new String((char[]) inputMessage.obj, 0, inputMessage.arg1);
+                    readMessage.trim();
+                    Log.i(MainActivity.this.TAG, readMessage);
+                    MainActivity.this.counter = 0;
+                    for (i = 0; i < readMessage.length(); i++) {
+                        if (readMessage.charAt(i) == ',') {
+                            MainActivity.this.counter = MainActivity.this.counter + 1;
+                        }
+                    }
+                    MainActivity.this.counter = MainActivity.this.counter + 1;
+                    if (readMessage != null) {
+                        String[] slot = new String[MainActivity.this.maxvalues];
+                        float[] slotfloat = new float[MainActivity.this.maxvalues];
+                        if (MainActivity.this.counter <= MainActivity.this.maxvalues) {
+                            String[] seperateValues = readMessage.split(",");
+                            for (i = 0; i < MainActivity.this.counter; i++) {
+                                slot[i] = seperateValues[i];
+                            }
+                            MainActivity.this.sensorList.clear();
+                            for (i = 0; i < MainActivity.this.counter; i++) {
+                                MainActivity.this.sensorList.add(new Sensor(MainActivity.this.SensorNames[i] + ":", slot[i]));
+                            }
+                            MainActivity.this.mAdapter.notifyDataSetChanged();
+                            return;
+                        }
+                        MainActivity.this.streamopen = false;
+                        MainActivity.this.openAlertDialog(5);
+                        return;
+                    }
+                    return;
+                default:
+                    return;
+            }
+        }
+    };
 
-    /**
-     * The {@link android.support.v4.view.PagerAdapter} that will provide
-     * fragments for each of the sections. We use a
-     * {@link FragmentPagerAdapter} derivative, which will keep every
-     * loaded fragment in memory. If this becomes too memory intensive, it
-     * may be best to switch to a
-     * {@link android.support.v4.app.FragmentStatePagerAdapter}.
-     */
-    private SectionsPagerAdapter mSectionsPagerAdapter;
+    private int maxvalues = 10;
+    byte[] mesg_out;
+    private long millis = 0;
+    private int rate = 0;
+    private int recently_closed = 0;
+    private RecyclerView recyclerView;
+    private String remoteDeviceMac;
+    TextView sensor1;
+    TextView sensor2;
+    TextView sensor3;
+    TextView sensor4;
+    TextView sensor5;
+    TextView sensor6;
+    private List<Sensor> sensorList = new ArrayList();
+    private String[] slot;
+    private int startTime = 0;
+    private int stopTime = 1;
+    private boolean streamopen = true;
+    private int time_diff = 0;
+    Toolbar toolbar;
+    private String usedchars = "1234567890,";
+    Vibrator vibe;
 
-    /**
-     * The {@link ViewPager} that will host the section contents.
-     */
-    private ViewPager mViewPager;
+    class AnonymousClass5 implements OnClickListener {
+        final /* synthetic */ int val$bluetooth_status;
 
-    @Override
+        AnonymousClass5(int i) {
+            this.val$bluetooth_status = i;
+        }
+
+        public void onClick(DialogInterface dialog, int id) {
+            dialog.cancel();
+            if (this.val$bluetooth_status == 5) {
+                MainActivity.this.onBackPressed();
+            }
+        }
+    }
+
+    private class ConnectedThread extends Thread {
+        private final BluetoothSocket mBtSocket;
+        private final InputStream mInStream;
+        private final OutputStream mOutStream;
+
+        public ConnectedThread(BluetoothSocket socket) {
+            this.mBtSocket = socket;
+            InputStream tmpIn = null;
+            OutputStream tmpOut = null;
+            try {
+                if (this.mBtSocket.isConnected()) {
+                    Log.i(MainActivity.this.TAG, "getInputStream");
+                    tmpIn = socket.getInputStream();
+                    tmpOut = socket.getOutputStream();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            this.mInStream = tmpIn;
+            this.mOutStream = tmpOut;
+        }
+
+        public void run() {
+            if (this.mBtSocket.isConnected()) {
+                Log.i(MainActivity.this.TAG, "Connected Thread started - looking for incomming massages");
+                char[] buffer = new char[1024];
+                while (MainActivity.this.streamopen) {
+                    try {
+                        buffer[MainActivity.this.bytes_in] = (char) this.mInStream.read();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    if (buffer[MainActivity.this.bytes_in] == ';') {
+                        MainActivity.this.mHandler.obtainMessage(43, MainActivity.this.bytes_in, -1, buffer).sendToTarget();
+                        MainActivity.this.bytes_in = 0;
+                        buffer = new char[1024];
+                    } else if (MainActivity.this.bytes_in > buffer.length - 2) {
+                        MainActivity.this.mHandler.obtainMessage(43, MainActivity.this.bytes_in, -1, buffer).sendToTarget();
+                        MainActivity.this.bytes_in = 0;
+                        buffer = new char[1024];
+                        Log.e(MainActivity.this.TAG, "Message too long");
+                    } else {
+                        MainActivity.this.bytes_in = MainActivity.this.bytes_in + 1;
+                    }
+                }
+            }
+        }
+
+        public void write(byte[] bytes) {
+            try {
+                this.mOutStream.write(bytes);
+                Log.e(MainActivity.this.TAG, "Message out: " + bytes);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void cancel() {
+            try {
+                this.mBtSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-        // Create the adapter that will return a fragment for each of the three
-        // primary sections of the activity.
-        mSectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
+        this.recyclerView = (RecyclerView) findViewById(R.id.recycler_view);
+        this.mAdapter = new SensorAdapter(this.sensorList);
+        this.recyclerView.setLayoutManager(new LinearLayoutManager(getApplicationContext()));
+        this.recyclerView.setItemAnimator(new DefaultItemAnimator());
+        this.recyclerView.setAdapter(this.mAdapter);
+        this.SensorNames = new String[this.maxvalues];
+        this.SensorNames = readFromFileAndUpdateSensorNames();
+        this.sensorList.clear();
+        for (int i = 0; i < 6; i++) {
+            this.sensorList.add(new Sensor(this.SensorNames[i] + ":", "    -   "));
+        }
+        this.mAdapter.notifyDataSetChanged();
 
-        // Set up the ViewPager with the sections adapter.
-        mViewPager = (ViewPager) findViewById(R.id.container);
-        mViewPager.setAdapter(mSectionsPagerAdapter);
+        String info = getDeviceListData();
+        this.address = info.substring(info.length() - 17);
+        this.deviceName = info.substring(0, info.length() - 17);
 
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
-
+        this.btn_connect = (FloatingActionButton) findViewById(R.id.btn_connect);   
+        this.mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        checkBluetooth();
     }
 
+    protected void checkBluetooth() {
+        if (this.mBluetoothAdapter == null) {
+            openAlertDialog(0);
+        } else if (!this.mBluetoothAdapter.isEnabled()) {
+            startActivityForResult(new Intent("android.bluetooth.adapter.action.REQUEST_ENABLE"), this.REQUEST_ENABLE_BT);
+        }
+    }
 
-    @Override
+    private String getSampleRate() {
+        String rate_string = BuildConfig.FLAVOR;
+        this.millis = System.currentTimeMillis();
+        this.stopTime = (int) this.millis;
+        this.time_diff = this.stopTime - this.startTime;
+        if (this.time_diff != 0) {
+            this.rate = 1000 / this.time_diff;
+            rate_string = Integer.toString(this.rate);
+        } else {
+            rate_string = " --- ";
+        }
+        this.millis = System.currentTimeMillis();
+        this.startTime = (int) this.millis;
+        return rate_string;
+    }
+
+    public void btnConnect(View view) {
+        this.remoteDeviceMac = this.address;
+        this.mBtDevice = this.mBluetoothAdapter.getRemoteDevice(this.remoteDeviceMac);
+        Log.e(this.TAG, this.remoteDeviceMac);
+        try {
+            this.mBtSocket = this.mBtDevice.createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805f9b34fb"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        try {
+            this.mBtSocket.connect();
+        } catch (IOException e2) {
+            e2.printStackTrace();
+            Log.e(this.TAG, "mBtSocket cannot connect");
+            if (this.disconnable != 1) {
+                makeToast("Bluetooth cannot connect");
+                this.recently_closed = 0;
+            }
+            if (this.disconnable == 1) {
+                this.disconnable = 0;
+                this.recently_closed = 1;
+            }
+            try {
+                this.mBtSocket.close();
+                Log.e(this.TAG, "Socket closed");
+            } catch (IOException e3) {
+                Log.e(this.TAG, "Socket cannot be closed");
+            }
+        }
+        if (this.mBtSocket.isConnected()) {
+            this.con_state = 1;
+
+            if (this.disconnable == 0) {
+                this.btn_connect.setEnabled(false);
+                this.disconnable = 1;
+            }
+            makeToast("Bluetooth-Device connected");
+            if (this.recently_closed == 0) {
+                Log.e(this.TAG, "Socket opened again");
+                startConnThread();
+            }
+        }
+    }
+
+    private void startConnThread() {
+        new Thread(new Runnable() {
+            public void run() {
+                do {
+                } while (!MainActivity.this.mBtSocket.isConnected());
+                new ConnectedThread(MainActivity.this.mBtSocket).start();
+                Log.e(MainActivity.this.TAG, "Thread startet again");
+            }
+        }).start();
+    }
+
+    @SuppressLint("WrongConstant")
+    private void makeToast(String topping) {
+        Toast.makeText(getApplicationContext(), topping, 1).show();
+    }
+
+    private void openAlertDialog(final int bluetooth_status) {
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this);
+        alertDialogBuilder.setTitle("Buetooth status");
+        switch (bluetooth_status) {
+            case R.styleable.View_theme /*4*/:
+                alertDialogBuilder.setMessage(R.string.bt_connection_lost);
+                break;
+            case R.styleable.Toolbar_contentInsetLeft /*5*/:
+                alertDialogBuilder.setMessage("The maximum number (" + Integer.toString(this.maxvalues) + ") of Sensors is exceeded. Please reduce number of sensors and make sure the end of each Message is confirmed by a ';'");
+                break;
+        }
+        alertDialogBuilder.setPositiveButton("OK", new OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                dialog.cancel();
+                if (bluetooth_status == 5) {
+                    MainActivity.this.streamopen = true;
+                    MainActivity.this.onBackPressed();
+                }
+            }
+        });
+        alertDialogBuilder.create().show();
+    }
+
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == 42) {
+            if (resultCode == 0) {
+                openAlertDialog(1);
+            }
+            if (resultCode == -1) {
+                openAlertDialog(2);
+            }
+        }
+    }
+
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
-
-    /**
-     * A placeholder fragment containing a simple view.
-     */
-    public static class PlaceholderFragment extends Fragment {
-        /**
-         * The fragment argument representing the section number for this
-         * fragment.
-         */
-        private static final String ARG_SECTION_NUMBER = "section_number";
-
-        public PlaceholderFragment() {
-        }
-
-        /**
-         * Returns a new instance of this fragment for the given section
-         * number.
-         */
-        public static PlaceholderFragment newInstance(int sectionNumber) {
-            PlaceholderFragment fragment = new PlaceholderFragment();
-            Bundle args = new Bundle();
-            args.putInt(ARG_SECTION_NUMBER, sectionNumber);
-            fragment.setArguments(args);
-            return fragment;
-        }
-
-        @Override
-        public View onCreateView(LayoutInflater inflater, ViewGroup container,
-                                 Bundle savedInstanceState) {
-            View rootView = inflater.inflate(R.layout.fragment_main, container, false);
-            TextView textView = (TextView) rootView.findViewById(R.id.section_label);
-            textView.setText(getString(R.string.section_format, getArguments().getInt(ARG_SECTION_NUMBER)));
-            return rootView;
+    protected void onDestroy() {
+        super.onDestroy();
+        if (this.con_state == 1) {
+            try {
+                this.mBtSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
-    /**
-     * A {@link FragmentPagerAdapter} that returns a fragment corresponding to
-     * one of the sections/tabs/pages.
-     */
-    public class SectionsPagerAdapter extends FragmentPagerAdapter {
-
-        public SectionsPagerAdapter(FragmentManager fm) {
-            super(fm);
-        }
-
-        @Override
-        public Fragment getItem(int position) {
-            // getItem is called to instantiate the fragment for the given page.
-            // Return a PlaceholderFragment (defined as a static inner class below).
-            return PlaceholderFragment.newInstance(position + 1);
-        }
-
-        @Override
-        public int getCount() {
-            // Show 3 total pages.
-            return 3;
-        }
+    @SuppressLint("WrongConstant")
+    public void reload() {
+        Intent intent = getIntent();
+        overridePendingTransition(0, 0);
+        intent.addFlags(65536);
+        finish();
+        overridePendingTransition(0, 0);
+        startActivity(intent);
     }
+
+    protected void onStop() {
+        super.onStop();
+    }
+
+    public void onResume() {
+        super.onResume();
+        this.sensorList.clear();
+
+        for (int i = 0; i < 6; i++) {
+            this.sensorList.add(new Sensor(this.SensorNames[i] + ":", "    -   "));
+        }
+        this.mAdapter.notifyDataSetChanged();
+    }
+
+    private String[] getCleanStrings(String strg) {
+        return strg.split(",");
+    }
+
+
 }

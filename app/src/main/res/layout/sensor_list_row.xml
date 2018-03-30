@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android" android:orientation="vertical" android:background="?unknown_attr_ref: 101030e" android:focusable="true" android:clickable="true" android:layout_width="match_parent" android:layout_height="wrap_content">
+    <android.support.v7.widget.CardView android:id="@+id/cv1" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="2dp">
+        <RelativeLayout android:padding="16dp" android:layout_width="match_parent" android:layout_height="wrap_content">
+            <TextView android:enabled="false" android:textSize="@dimen/textsize" android:textStyle="bold" android:textColor="#333333" android:gravity="top|bottom|left|right|center_vertical|fill_vertical|center_horizontal|fill_horizontal|center|fill|start|end" android:layout_gravity="top|bottom|left|right|center_vertical|fill_vertical|center_horizontal|fill_horizontal|center|fill|start|end" android:id="@+id/nametxt" android:layout_width="wrap_content" android:layout_height="UNKNOWN_DATA_0x7f050081" android:layout_marginRight="3dp" android:editable="true" />
+            <TextView android:textSize="@dimen/textsize" android:textColor="#333333" android:gravity="top|bottom|left|right|center_vertical|fill_vertical|center_horizontal|fill_horizontal|center|fill|start|end" android:layout_gravity="top|bottom|left|right|center_vertical|fill_vertical|center_horizontal|fill_horizontal|center|fill|start|end" android:id="@+id/datatxt" android:background="@drawable/back" android:layout_width="UNKNOWN_DATA_0x7f050082" android:layout_height="UNKNOWN_DATA_0x7f050081" android:editable="false" android:layout_alignParentRight="true" />
+        </RelativeLayout>
+    </android.support.v7.widget.CardView>
+</RelativeLayout>
